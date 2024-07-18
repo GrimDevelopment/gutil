@@ -1,9 +1,0 @@
-README.md
-setup.py
-GDUtilities.egg-info/PKG-INFO
-GDUtilities.egg-info/SOURCES.txt
-GDUtilities.egg-info/dependency_links.txt
-GDUtilities.egg-info/requires.txt
-GDUtilities.egg-info/top_level.txt
-gdutilities/__init__.py
-gdutilities/config_resolver.py
