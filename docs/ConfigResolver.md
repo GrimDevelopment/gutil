@@ -9,9 +9,9 @@ The `ConfigResolver` class is a utility for managing configuration data from YAM
 - Access nested configuration values using a key path.
 - Handle errors gracefully with informative messages.
 
-    ```sh
-    pip install pyyaml python-dotenv
-    ```
+   ```sh
+   pip install pyyaml python-dotenv
+   ```
 
 ## Usage
 
@@ -27,6 +27,7 @@ resolver = ConfigResolver()
 ```
 
 ### Loading Configuration
+
 Load and access configuration variables from a YAML file:
 
 ```py
@@ -36,6 +37,7 @@ print(f"Database URL from config: {database_url_config}")
 ```
 
 ### Accessing Environment Variables
+
 Load environment variables from .env and access a variable directly:
 
 ```py
@@ -44,6 +46,7 @@ print(f"Database URL from environment: {database_url_env}")
 ```
 
 ### Example
+
 Given a .env file:
 
 ```sh
@@ -56,7 +59,9 @@ And a config.yaml file:
 database:
   url: mysql://user:password@localhost/dbname
 ```
+
 You can access the environment variable and configuration value as follows:
+
 ```py
 from config_resolver import ConfigResolver
 
