@@ -2,7 +2,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from typing import Iterable, Optional, Set
+from typing import Iterable, Optional
 
 
 class ProjectCreator:
@@ -84,82 +84,89 @@ class ProjectCreator:
         if not os.path.isdir(dest_dir):
             raise ValueError(f"Destination must be an existing directory: {dest_dir}")
 
-        # Clone to a temp directory
-        tmpdir = tempfile.mkdtemp(prefix="gutil-template-")
+        # Determine source directory: either an existing path or a temp clone
+        cleanup_dir: Optional[str] = None
+        if os.path.isdir(template_url):
+            source_dir = os.path.abspath(template_url)
+        else:
+            tmpdir = tempfile.mkdtemp(prefix="gutil-template-")
+            cleanup_dir = tmpdir
+            try:
+                cmd = ["git", "clone", template_url, tmpdir]
+                if branch:
+                    cmd = [
+                        "git",
+                        "clone",
+                        "--branch",
+                        branch,
+                        "--single-branch",
+                        template_url,
+                        tmpdir,
+                    ]
+
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        check=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                except FileNotFoundError as e:
+                    raise RuntimeError("git is not installed or not found in PATH") from e
+
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"Failed to clone template repo (exit {result.returncode}).\n"
+                        f"Command: {' '.join(cmd)}\n"
+                        f"stderr: {result.stderr.strip()}"
+                    )
+            except Exception:
+                # Ensure we clean up on failure before re-raising
+                if cleanup_dir:
+                    try:
+                        shutil.rmtree(cleanup_dir)
+                    except Exception:
+                        pass
+                raise
+            source_dir = tmpdir
+
         try:
-            cmd = ["git", "clone", template_url, tmpdir]
-            if branch:
-                cmd = ["git", "clone", "--branch", branch, "--single-branch", template_url, tmpdir]
+            rsync_cmd = ["rsync", "-a", "--exclude=.git"]
+            if exclude:
+                # Apply exclude patterns for rsync as --exclude=pattern
+                rsync_cmd.extend(f"--exclude={pattern}" for pattern in exclude)
+            if not overwrite:
+                rsync_cmd.append("--ignore-existing")
+
+            # Ensure trailing slash to copy contents rather than directory itself
+            source_with_slash = source_dir if source_dir.endswith(os.sep) else f"{source_dir}{os.sep}"
+            rsync_cmd.extend([source_with_slash, dest_dir])
 
             try:
-                result = subprocess.run(
-                    cmd,
+                rsync_result = subprocess.run(
+                    rsync_cmd,
                     check=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
                 )
             except FileNotFoundError as e:
-                raise RuntimeError("git is not installed or not found in PATH") from e
+                raise RuntimeError("rsync is not installed or not found in PATH") from e
 
-            if result.returncode != 0:
+            if rsync_result.returncode != 0:
                 raise RuntimeError(
-                    f"Failed to clone template repo (exit {result.returncode}).\n"
-                    f"Command: {' '.join(cmd)}\n"
-                    f"stderr: {result.stderr.strip()}"
+                    "Failed to merge template files with rsync "
+                    f"(exit {rsync_result.returncode}).\n"
+                    f"Command: {' '.join(rsync_cmd)}\n"
+                    f"stderr: {rsync_result.stderr.strip()}"
                 )
-
-            # Build exclusion set
-            skip: Set[str] = {".git", "..", "."}
-            if exclude:
-                skip.update(exclude)
-
-            # First pass: detect conflicts
-            conflicts = []
-            for root, dirs, files in os.walk(tmpdir):
-                # relative path from tmpdir
-                rel_root = os.path.relpath(root, tmpdir)
-                if rel_root == ".":
-                    rel_root = ""
-                # Filter directories in-place
-                dirs[:] = [d for d in dirs if d not in skip]
-                for fname in files:
-                    if fname in skip:
-                        continue
-                    rel_path = os.path.normpath(os.path.join(rel_root, fname))
-                    target_path = os.path.join(dest_dir, rel_path)
-                    if os.path.exists(target_path) and not overwrite:
-                        conflicts.append(rel_path)
-            if conflicts and not overwrite:
-                sample = "\n".join(conflicts[:10])
-                more = "" if len(conflicts) <= 10 else f"\n... and {len(conflicts)-10} more"
-                raise RuntimeError(
-                    "Conflicts detected; use overwrite=True to replace existing files:\n"
-                    f"{sample}{more}"
-                )
-
-            # Second pass: copy files
-            for root, dirs, files in os.walk(tmpdir):
-                rel_root = os.path.relpath(root, tmpdir)
-                if rel_root == ".":
-                    rel_root = ""
-                dirs[:] = [d for d in dirs if d not in skip]
-                for d in dirs:
-                    os.makedirs(os.path.join(dest_dir, rel_root, d), exist_ok=True)
-                for fname in files:
-                    if fname in skip:
-                        continue
-                    src = os.path.join(root, fname)
-                    rel_path = os.path.normpath(os.path.join(rel_root, fname))
-                    dst = os.path.join(dest_dir, rel_path)
-                    os.makedirs(os.path.dirname(dst), exist_ok=True)
-                    shutil.copy2(src, dst)
 
             return dest_dir
         finally:
-            # Clean up the temporary clone
-            try:
-                shutil.rmtree(tmpdir)
-            except Exception:
-                # Best-effort; avoid masking earlier exceptions
-                pass
+            if cleanup_dir:
+                try:
+                    shutil.rmtree(cleanup_dir)
+                except Exception:
+                    # Best-effort; avoid masking earlier exceptions
+                    pass

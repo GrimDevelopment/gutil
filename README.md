@@ -208,7 +208,7 @@ If you prefer not to install, you can still use the shim:
 
 ### Template integration
 
-Integrate the vibe-coding-template (or any repo) into your current project, then remove the temporary clone. By default, conflicts abort unless `--overwrite` is set. Excludes VCS metadata (`.git`) and any names you pass via `--exclude`.
+Integrate the vibe-coding-template (or any repo) into your current project, then remove the temporary clone. By default, merging is performed via `rsync -a --exclude='.git' --ignore-existing` so existing files are left untouched; `--overwrite` drops the `--ignore-existing` flag. You can exclude additional paths with `--exclude`.
 
 ```sh
 # Integrate the default vibe-coding-template into the current directory
