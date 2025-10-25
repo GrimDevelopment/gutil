@@ -1,2 +1,5 @@
 pyyaml
 python-dotenv
+lancedb
+fastembed
+rich

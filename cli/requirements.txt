@@ -1,0 +1,7 @@
+fastapi
+httpx
+click
+pydantic
+python-dotenv
+openai
+requests

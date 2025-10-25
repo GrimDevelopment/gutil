@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Simple shim to run gutil CLI from the repo without packaging/installing.
+exec python -m gutil "$@"
+

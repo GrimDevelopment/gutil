@@ -1,0 +1,15 @@
+db_uri: ./data/codex_memory
+table: interactions
+retrieval:
+  top_k: 5
+embeddings:
+  provider: fastembed # or 'openai'
+  model: null         # optional override
+codex:
+  # Extra arguments to pass to codex CLI (e.g., --oss for local models)
+  args:
+    - --oss
+history:
+  sqlite_path: ./data/history.db
+  enable: true
+

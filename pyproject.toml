@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling>=1.20.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gutil"
+version = "0.1.0"
+description = "gutil — small Python utilities (ConfigResolver, Codex REPL, Toolbox + LanceDB integration)"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "Proprietary" }
+authors = [
+  { name = "GrimDevelopment (MrGrim)" }
+]
+dependencies = [
+  "pyyaml",
+  "python-dotenv",
+  "lancedb",
+  "fastembed",
+  "rich",
+  "requests",
+]
+
+[project.scripts]
+gutil = "gutil.__main__:main"
+
+[tool.hatch.build]
+include = [
+  "gutil/**",
+  "cli/**",
+  "docs/**",
+  "README.md",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["gutil", "cli"]
+
+[tool.hatch.build.force-include]
+"cli/codex_cli/config.yaml" = "cli/codex_cli/config.yaml"

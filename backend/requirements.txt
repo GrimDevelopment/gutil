@@ -1,0 +1,10 @@
+FastAPI
+uvicorn
+supabase
+pydantic
+httpx
+python-dotenv
+openai
+click
+requests
+passlib[bcrypt]
