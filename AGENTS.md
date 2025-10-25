@@ -1,112 +1,108 @@
-# gutil — Agent Guide (AGENTS.md)
+# gutil — Agent Guide (concise, actionable)
 
-This file guides coding agents contributing to the gutil project by GrimDevelopment (MrGrim). It defines scope, code conventions, structure, and expectations for changes. Its scope applies to the entire repository.
+Purpose: Equip AI coding agents to make correct, minimal, high‑leverage changes across this repo. Favor clarity, backward compatibility, and docs kept in sync.
 
-## Project Overview
+## Big picture
 
-- Name: gutil (personal CLI/utilities by GrimDevelopment / MrGrim)
-- Language: Python 3.8+
-- Purpose: Small utilities for configuration and environment handling. Current primary module: `ConfigResolver`.
-- Dependencies: `pyyaml`, `python-dotenv` (pinned in `requirement.txt`).
+- This repo is both a Python library (gutil) and a small template stack (FastAPI backend + CLI tooling).
+- Library focus: configuration and utilities: `ConfigResolver`, `CodexBridge`, `LanceDBClient`, `ToolboxBridge`.
+- Template focus: `backend/` (FastAPI + Supabase + LLM), `cli/` (HTTP client + commands). Use as reference patterns, not heavy dependencies for gutil core.
 
-## Repo Map
+Key dirs/files
 
-- `gutil/ConfigResolver.py`: `ConfigResolver` class for loading values from `config.yaml` and `.env`.
-- `gutil/__init__.py`: Package marker (keep imports lightweight).
-- `docs/ConfigResolver.md`: User-facing docs and examples for `ConfigResolver`.
-- `README.md`: Project overview (may still reference GDUtilities; prefer the name “gutil” going forward).
-- `requirement.txt`: Runtime deps for examples/docs. Do not rename without updating docs.
+- gutil/: library modules and CLI entrypoint (`__main__.py`).
+- cli/: thin client used by local CLI containers and examples (requests-based `AppClient`).
+- backend/: FastAPI scaffold with services for Supabase, LLM, embeddings; dockerized dev.
+- docs/: user docs for utilities (ConfigResolver, LanceDB, Codex CLI, etc.).
+- .cursor/rules/: authoritative project standards for backend/frontend workflows (use when touching template code).
+- Makefile, docker-compose.yml, first-time.sh: dev automation.
+- pyproject.toml: package metadata and deps for gutil + included cli.
 
-## General Rules
+## Developer workflows (high-signal)
 
-- Keep changes minimal, focused, and Pythonic. Prefer clarity over cleverness.
-- Maintain backward compatibility for public interfaces (imports and class/method names).
-- Do not introduce new top-level dependencies without a clear need and documentation.
-- Update docs for any behavioral change or new feature (see Documentation section).
-- Prefer exceptions over silent failures. Return values should be simple and explicit.
-- If adding CLI entry points later, separate CLI I/O from library logic.
+- Local library work
 
-## Code Conventions
+  - Install: pip install -e . (or pip install -r requirement.txt for minimal examples)
+  - Quick probes:
+    - Env read: from gutil.ConfigResolver import ConfigResolver as C; C().load_config('env','FOO')
+    - YAML read: C().load_config('config','section/key') with repo-root config.yaml
 
-- Style: Follow standard Python style (PEP 8). Use descriptive names (no one-letter vars).
-- Errors: Raise precise exceptions. Compose clear error messages; avoid swallowing stack traces.
-- Logging/Output: Library code should avoid noisy `print`. If you must report, use Python `logging` with reasonable defaults. Preserve existing behavior in `ConfigResolver`.
-- Types: Add type hints for new or modified functions when practical.
-- Imports: Standard → third-party → local, with blank lines between groups.
-- I/O paths: Treat `config.yaml` and `.env` as repository-root defaults unless a path parameter is explicitly added.
+- Template dev (optional)
+  - make dev (docker-compose up --build) to start backend and CLI containers
+  - Backend health: http://localhost:8000/api/v1/health/health
+  - Logs: docker-compose logs -f backend | cli
 
-## Module-Specific Guidance
+## Project conventions
 
-### ConfigResolver (`gutil/ConfigResolver.py`)
+- Minimalism: keep public APIs stable; avoid new top‑level deps without clear need. If added, document in README.md and pyproject.
+- Errors as signals: raise precise exceptions; avoid print in library code. CLI handles I/O.
+- Types: add type hints on changed/new functions.
+- Paths/config: default to repo‑root `.env` and `config.yaml` unless new opt‑in args are provided.
 
-- Keep the current API stable:
-  - Class: `ConfigResolver`
-  - Method: `load_config(source, variable_path)`
-- Supported `source` values remain `'config'` and `'env'`.
-- For `'config'`, keys are a slash-delimited path (e.g., `section/key/subkey`).
-- For `'env'`, `variable_path` is the raw env var name.
-- If you add features (e.g., custom file paths, different loaders, defaults):
-  - Add parameters in a backward-compatible way (keyword-only with sensible defaults).
-  - Validate inputs and raise `ValueError` for invalid combinations.
-  - Update examples in `docs/ConfigResolver.md` and mention changes in `README.md`.
+## Critical module contracts
 
-## Documentation
+- ConfigResolver (gutil/ConfigResolver.py)
 
-- Update `docs/` with concrete examples for any new capability.
-- Keep `README.md` concise; link to detailed docs in `docs/`.
-- Code examples should be runnable with only the listed dependencies and sample files.
-- If you rename or add files expected by the library (e.g., `config.yaml`), reflect that in docs.
-- When adding or removing features or important behavior, update both `docs/` and `README.md` in the same change so they stay in sync.
+  - API must remain: class ConfigResolver; method load_config(source, variable_path)
+  - source ∈ { 'config', 'env' }
+  - 'config' uses slash path (e.g., section/key/subkey); 'env' uses raw env var
+  - Input validation → ValueError; do not print; update docs/ConfigResolver.md if behavior changes
 
-### MCP Docs Sync
+- CodexBridge (gutil/CodexBridge.py)
 
-- When docs are updated (either `docs/` or `README.md`), also update the `docs-mcp-server` so its resources reflect the latest content.
-- Typical actions: sync or mirror changed markdown, regenerate indexes/manifests, and run the server’s publish/release workflow.
-- If `docs-mcp-server` lives in a separate repo, open a companion PR referencing the change here and link them together.
+  - Thin wrapper to invoke external Codex CLI binary from $GUTIL_CODEX_BIN or 'codex'
+  - Don’t vendor Codex; capture returncode/stdout/stderr; raise CodexCLIError on resolution issues
 
-## Testing & Validation
+- LanceDB (gutil/LanceDB.py)
 
-- There is no formal test suite. When changing behavior, add a minimal, self-contained example to `docs/` and verify locally with Python 3.8+.
-- Prefer writing small probes (e.g., `python -c "..."`) to validate changes.
-- Do not add test frameworks unless requested; keep validation lightweight.
+  - \_ensure_lancedb() guards optional dependency; raise LanceDBNotInstalled with actionable hint
+  - Keep list/create/query minimal; avoid side effects; CLI layer parses/prints
 
-## Dependency Management
+- gutil CLI (gutil/**main**.py)
 
-- Runtime dependencies are listed in `requirement.txt`.
-- Keep versions flexible unless pinning is required for correctness.
-- If you add a dependency, explain why in the PR/commit description and update installation instructions in `README.md`.
+  - Subcommands: create project, codex passthrough, lancedb (list/create/query), toolbox run/install
+  - Preserve flags/behavior; separate user I/O from library logic
 
-## Adding New Utilities
+- CLI App client (cli/app/services/api_client.py)
+  - HTTP to backend with simple config state; endpoints under /api/v1; handle auth token persistence
 
-- Place new modules under `gutil/` with clear names (e.g., `PathTools.py`).
-- Provide a dedicated `docs/<ModuleName>.md` describing purpose, API, and examples.
-- Keep modules single-responsibility and small. Avoid cross-coupling between utilities; compose via imports when needed.
+## Backend patterns (template)
 
-## Backward Compatibility
+- FastAPI app with CORSMiddleware; Pydantic BaseSettings in backend/app/core/config.py (env via .env)
+- Services: SupabaseAuthService, SupabaseDatabaseService, EmbeddingService, CodexService (LLM)
+- Follow .cursor/rules/backend/\* standards if modifying backend scaffold
 
-- Do not rename files or classes that form part of the import path without adding shims in `gutil/__init__.py` and clearly documenting the deprecation path.
-- Treat printed output as part of observable behavior; changes should be deliberate and documented.
+## Integration points and external deps
 
-## Security & Safety
+- pyproject.toml deps (library scope): pyyaml, python-dotenv, lancedb, fastembed, rich, requests
+- Backend/container deps are isolated to backend/ and docker-compose; avoid coupling into gutil core
 
-- Treat configuration files as untrusted input. Validate types and presence of keys before use.
-- Avoid executing or evaluating configuration content.
-- Do not log secrets from `.env` or configuration files.
+## When changing behavior
 
-## Release & Versioning
+- Update docs under docs/ relevant module (and README.md summary). Keep examples runnable with listed deps.
+- If you touch template standards, also review .cursor/rules/\* for alignment.
+- Maintain backward compatibility; if a breaking change is unavoidable, document clear upgrade notes.
 
-- No explicit versioning policy yet. If introducing breaking changes, surface them clearly in `README.md` and docs with upgrade notes.
+## Validation: green-before-done
 
-## Quick Local Checks
+- Build/import smoke: python -c "import gutil, cli" (after pip install -e .)
+- Probes for changed modules (see “Local library work” above)
+- Optional: docker-compose up for backend health if touching cli/backend integration
 
-- Install deps: `pip install -r requirement.txt`
-- Probe env read:
-  - `python -c "from gutil.ConfigResolver import ConfigResolver as C; print(C().load_config('env','EXAMPLE') if True else '')"`
-- Probe config read (requires `config.yaml`):
-  - `python -c "from gutil.ConfigResolver import ConfigResolver as C; print(C().load_config('config','section/key'))"`
+## Security and data handling
 
-## When In Doubt
+- Treat config input as untrusted; never log secrets from .env/config
+- Avoid executing config content; validate expected types/keys
 
-- Prefer minimal surface area and explicit behavior.
-- Update documentation alongside code changes.
-- Ask before introducing new patterns or dependencies.
+## Adding new utilities
+
+- Place under gutil/ with a focused purpose; add docs/<Module>.md + minimal usage example
+- Avoid cross-coupling; compose via imports only where necessary
+
+## Quick references
+
+- Docs: docs/\*.md (ConfigResolver.md, LanceDB.md, CodexCLI.md)
+- Entry: python -m gutil … or bin/gutil
+- Dev automation: Makefile targets (dev/up/down/logs); first-time.sh for initial bootstrap
+
+When unsure: prefer the smallest, explicit change; keep APIs stable; update docs alongside code.
